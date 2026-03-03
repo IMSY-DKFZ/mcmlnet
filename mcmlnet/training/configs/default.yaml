@@ -1,0 +1,20 @@
+train_mode: train  # train or tune
+
+defaults:
+  - _self_
+  # model architecture of choice
+  - model: forward_surrogate_model
+  # dataset and processing/ transformation steps
+  - data_and_processing: forward_surrogate_model
+  - mode: train  # train or tune, cannot be interpolated
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+n_comp: null
+n_wavelengths: 15
+
+# disable separate hydra logging
+hydra:
+  output_subdir: null
+  run:
+    dir: .

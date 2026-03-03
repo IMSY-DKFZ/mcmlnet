@@ -1,0 +1,27 @@
+# @package _global_
+
+progress_bar_refresh_rate: 50
+
+ckpt_path: null
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  check_val_every_n_epoch: 10
+  max_epochs: 500
+  precision: 32-true  # alternatives are e.g. bf16-mixed, bf16-true, 16-true, 32-true and 64-true see https://lightning.ai/docs/pytorch/stable/common/trainer.html#precision
+  benchmark: True  # benchmark and deterministic are exclusive
+  #deterministic: True
+
+profiler:  # see https://lightning.ai/docs/pytorch/stable/api_references.html#profiler
+  null
+  #_target_: lightning.pytorch.profilers.AdvancedProfiler
+
+  #filename: advanced_profile_logs
+  #line_count_restriction: 25  # only show float% of lines or int amount of lines
+
+checkpointing:
+  monitor: 'val_loss'
+  save_last: True
+  save_top_k: 1
+  mode: 'min'

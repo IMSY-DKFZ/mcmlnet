@@ -1,0 +1,62 @@
+# @package _global_
+
+name: ForwardSurrogateModel
+
+model:
+  _target_: mcmlnet.training.models.base_model.BaseModel
+  _recursive_: False
+
+  mode: ${train_mode}
+  batch_size: ${batch_size}
+  max_augm_epochs: ${max_augm_epochs}
+  n_wavelengths: ${n_wavelengths}
+
+  generator:
+    _target_: mcmlnet.training.models.network_constructor.ForwardSurrogateModel
+    layers: [512, 512, 512, 512, 512, 1]
+    n_params: ${n_params}
+    arch_type: minimal
+    sigmoid: True  # inverse of dataset.log_intensity
+    p_dropout: 0.0
+
+  discriminator:
+    null
+
+  optimizer_gen:
+    # see: https://github.com/Liuhong99/Sophia
+    _target_: mcmlnet.training.optimization.sophia_optimizer.SophiaG
+    # PreProcessor requires factor 2x-10x lower learning rate
+    lr: 0.0001
+    #betas: [0.965, 0.99]
+    #rho: 0.1
+    weight_decay: 0.001
+
+  scheduler_gen:
+    _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+    factor: 0.5
+    patience: 20
+    threshold: 0.01
+    threshold_mode: rel
+    min_lr: 1.0e-8
+
+  optimizer_dis:
+    null
+
+  scheduler_dis:
+    null
+
+  network_init:
+    activation: leaky_relu
+    negative_slope: 0.2
+    weight_init: kaiming_normal
+    bias_init: zeros
+
+  loss_init:
+    validate:
+      _target_: torch.nn.functional.l1_loss
+      _recursive_: False
+      reduction: mean
+    train:
+      _target_: torch.nn.functional.l1_loss
+      _recursive_: False
+      reduction: mean

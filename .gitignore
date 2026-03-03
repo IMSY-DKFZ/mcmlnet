@@ -1,0 +1,49 @@
+# data files, unless explicitly added to the repository
+*.npy
+*.npz
+*.pkl
+*.csv
+*.parquet
+*.ckpt
+data/models/*
+cache/*
+cache_minimal/*
+ww-img/*
+lightning_logs/
+artifacts/
+mci/
+*.mco
+*.log
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.json
+*.txt
+*.joblib
+.coverage
+
+# environment files
+.env
+.codecarbon.config
+credentials.json
+.venv/
+
+# vscode files
+.vscode/
+
+# package files
+*.egg-info/
+*.egg
+*.eggs
+*.egg-info
+
+# pycache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
