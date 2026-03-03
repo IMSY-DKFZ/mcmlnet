@@ -1,0 +1,57 @@
+# @package _global_
+
+ckpt_path: null
+resume: True
+
+num_trials: 50
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  check_val_every_n_epoch: 10
+  max_epochs: 1000
+  precision: "32-true"
+  benchmark: True
+
+profiler:
+  null
+
+tune_config:
+  max_augm_epochs_ratio:
+    - 0
+    - 0.05
+    - 0.2
+    - 0.5
+  patience_ratio:
+    - 0
+    - 0.05
+    - 0.2
+    - 0.5
+  snr:
+    - 10
+    - 30
+    - 100
+    - 300
+  batch_size:
+    - 32
+    - 64
+    - 128
+    - 256
+    - 512
+    - 1024
+  gen_depth:
+    low: 2
+    high: 10
+  gen_layer_width:
+    - 32
+    - 64
+    - 128
+    - 256
+    - 512
+    - 1024
+  gen_lr:
+    low: 1.0e-5
+    high: 1.0e-2
+  weight_decay:
+    low: 1.0e-6
+    high: 1.0e-2

@@ -1,0 +1,44 @@
+# Basic configuration for simulation comparison experiments
+
+data:
+  real_data: human
+  organic_only: True
+  specular: False
+  test_data: "final"  # Options: "test", "final", False
+
+surrogate:
+  issi_model:
+    base_path: "models/MLP_100M_photons_fold_0_tdr_6.0/"
+    checkpoint_path: "checkpoints/ForwardSurrogateModel-epoch=999-val_loss=0.0000.ckpt"
+  issi_kan_model:
+    base_path: "models/KAN_100M_photons_fold_0_tdr_1.0"
+    checkpoint_path: "checkpoints/ForwardSurrogateModelKAN-epoch=239-val_loss=0.0000.ckpt"
+  lan_model:
+    base_path: "models/related_work/lan_lhs_tdr_1.0/"
+    checkpoint_path: "checkpoints/lan_lhs-epoch=2431-val_loss=0.0004.ckpt"
+  tsui_model:
+    base_path: "models/related_work/tsui_tdr_1.0/"
+    checkpoint_path: "checkpoints/tsui-epoch=1023-val_loss=0.0003.ckpt"
+  manoj_model:
+    base_path: "models/related_work/manoj_tdr_1.0/"
+    checkpoint_path: "checkpoints/manoj-epoch=1279-val_loss=0.0002.ckpt"
+
+pca:
+  aggregation_level: image
+  use_surrogate_model: ${SURROGATE_MODEL}
+  minimal_overlap: False
+  n_components_plot: 2
+  batch_size: 1000000
+  show_inverse: False
+
+recall:
+  metric: l1
+  aggregation_level: raw
+  use_surrogate_model: ${SURROGATE_MODEL}
+  do_surrogate_model_ablation: ${SURROGATE_ABLATION}
+  minimal_overlap: False
+  mae_thresholds: [0.001, 0.003, 0.005, 0.007, 0.01, 0.015, 0.02, 0.025, 0.03, 0.05, 0.1, 0.5]
+  cos_thresholds: [0.999, 0.995, 0.99, 0.98, 0.97, 0.95, 0.9, 0.7]
+  r2_thresholds: [0.0, 0.5, 0.7, 0.9, 0.95, 0.99]
+  plot_type: polar_bar
+  log_radial_axis: True

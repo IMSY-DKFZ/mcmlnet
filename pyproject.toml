@@ -1,0 +1,171 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcmlnet"
+dynamic = ["version"]
+authors = [
+    {name = "Division of Intelligent Medical Systems (IMSY), DKFZ", email = "marco.huebner@dkfz-heidelberg.de"},
+]
+description = "Multi-layer Monte Carlo Network (mcmlnet) - a framework for training surrogate models to accelerate multilayer Monte Carlo simulations in hyperspectral imaging and tissue optics"
+keywords = ["machine-learning", "monte-carlo-simulation", "surrogate-models", "hyperspectral", "medical-imaging", "optical-properties", "tissue-modeling"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Monte Carlo Simulation",
+    "Topic :: Scientific/Engineering :: Surrogate Model",
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    # Deep learning and ML
+    "optuna>=4.4.0",              # MIT License
+    "optuna-integration>=4.4.0",  # MIT License
+    "shap>=0.48.0",               # MIT License
+    "FrEIA @ git+https://github.com/VLL-HD/FrEIA.git@cc5cf5ebee08f9bb762bab5a6535c11d19ccb026",  # MIT License
+    # Visualization
+    "plotly==5.24.1",             # MIT License - use old version to avoid BrowserFailedError / chromium dependence
+    "kaleido==0.2.1",             # MIT License
+    # Utilities
+    "ipywidgets>=8.1.0", # BSD-3 Clause License
+    # Configuration and data handling
+    "omegaconf>=2.3.0",       # BSD License
+    "hydra-core>=1.3.0",      # MIT License
+    "hydra_colorlog>=1.2.0",  # MIT License
+    "pyyaml>=6.0",            # MIT License
+    # Model complexity analysis
+    "fvcore>=0.1.5",      # Apache 2.0 License
+    "ptflops>=0.7.0",     # MIT License
+    "thop>=0.1.1",        # MIT License
+    # Testing
+    "pytest>=8.3.0",      # MIT License
+    "pytest-cov>=7.0.0",  # MIT License
+
+    "deprecated>=1.3.1",  # MIT License
+]
+
+[project.optional-dependencies]
+real-data = [
+    "imsy-htc==0.0.21",  #  See "https://github.com/IMSY-DKFZ/htc > PyTorch Compatibility and Custom Pytorch Versions" for compatibility
+]
+# GPU-accelerated ML (cuML) - cuda version (nvcc --version) dependent!
+cuml-cu13 = [
+    "cuml-cu13>=25.12.0", # Apache 2.0 License
+]
+dev = [
+    "mypy==1.17.1",               # MIT License
+    "pre-commit==4.2.0",          # MIT License
+    "detect-secrets==1.5.0",      # Apache 2.0 License
+    "codecarbon>=3.0.0",          # MIT License
+    "ruff>=0.6.9",                # MIT License
+    "weightwatcher>=0.7.5.5",     # Apache 2.0 License
+    "xgboost>=3.0.5",             # Apache 2.0 License
+]
+
+[project.urls]
+Homepage = "https://github.com/IMSY-DKFZ/mcmlnet"
+Repository = "https://github.com/IMSY-DKFZ/mcmlnet"
+
+[tool.setuptools]
+packages = ["mcmlnet"]
+include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "mcmlnet.__version__"}
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I",        # pycodestyle / pyflakes / isort
+    "UP",                 # pyupgrade
+    "B",                  # bugbear
+    "C4",                 # comprehensions
+    "ISC",                # implicit string concat
+    "ICN",                # import conventions
+    "PIE",                # miscellaneous
+    "Q",                  # quotes
+    "TID",                # tidy imports
+    "RUF",                # Ruff specific
+    "W291",               # trailing whitespace
+]
+ignore = []
+
+[tool.ruff.format]
+# oriented on black formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["mcmlnet"]
+combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-config",
+    "--verbose",
+    "--color=yes",
+]
+filterwarnings = [
+    "ignore:This process.*use of fork.*may lead to deadlocks:DeprecationWarning",
+    "ignore::Warning:site-packages",
+    "ignore::Warning:.venv/lib/",
+]
+
+[tool.coverage.run]
+include = [
+  "mcmlnet/data_gen/camera_adaptation.py",
+  "mcmlnet/experiments/data_loaders/aggregation.py",
+  "mcmlnet/experiments/data_loaders/config.py",
+  "mcmlnet/experiments/data_loaders/real_data.py",
+  "mcmlnet/experiments/data_loaders/simulation.py",
+  "mcmlnet/experiments/data_loaders/utils.py",
+  "mcmlnet/experiments/utils.py",
+  "mcmlnet/experiments/explainability.py",
+  "mcmlnet/training/data_loading/*",
+  "mcmlnet/training/models/*",
+  "mcmlnet/training/optimization/analytical_baselines.py",
+  "mcmlnet/training/optimization/optimizer.py",
+  "mcmlnet/transforms/*",
+  "mcmlnet/utils/*",
+]
+omit = [
+  "*/__init__.py",
+]
+
+[tool.pip]
+extra-index-url = [
+    "https://download.pytorch.org/whl/cu126",
+    "https://pypi.nvidia.com"
+]
