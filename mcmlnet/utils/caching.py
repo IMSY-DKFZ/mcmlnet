@@ -6,11 +6,10 @@ from typing import Any
 
 import numpy as np
 import torch
-from dotenv import load_dotenv
 
+from mcmlnet.utils.env import require_env
 from mcmlnet.utils.logging import setup_logging
 
-load_dotenv()
 logger = setup_logging(level="info", logger_name=__name__)
 
 
@@ -56,7 +55,7 @@ def np_cache_to_file(func: Callable, file_name: str) -> Callable:
         TypeError: If the cache file does not contain a valid numpy array or tuple.
     """
     if not os.path.isabs(file_name):
-        file = os.path.join(os.environ["cache_dir"], file_name)
+        file = os.path.join(require_env("cache_dir"), file_name)
         os.makedirs(os.path.dirname(file), exist_ok=True)
     else:
         file = file_name

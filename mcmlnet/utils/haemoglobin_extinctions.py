@@ -3,15 +3,13 @@
 import os
 
 import numpy as np
-from dotenv import load_dotenv
 from scipy.interpolate import interp1d
 
 from mcmlnet.constants import (
     CM_INV_TO_M_INV,
     NM_TO_M,
 )
-
-load_dotenv()
+from mcmlnet.utils.env import require_env
 
 
 def get_haemoglobin_extinction_coefficients(
@@ -42,7 +40,7 @@ def get_haemoglobin_extinction_coefficients(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/haemoglobin.txt"
+            require_env("data_dir"), "chromophores/haemoglobin.txt"
         )
 
     if not os.path.exists(reference_filename):

@@ -342,7 +342,18 @@ class TestSimulationDataLoader:
         """Test error when simulation data file is not found."""
         loader = SimulationDataLoader()
 
-        with pytest.raises(FileNotFoundError, match="Dataset test_file not found"):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(FileNotFoundError, match="Dataset test_file not found"):
+                loader.load_simulation_data("test_file", temp_dir)
+
+    def test_load_simulation_data_requires_data_dir_at_runtime(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing data_dir should fail at call time, not import time."""
+        monkeypatch.delenv("data_dir", raising=False)
+        loader = SimulationDataLoader()
+
+        with pytest.raises(RuntimeError, match="Environment variable 'data_dir'"):
             loader.load_simulation_data("test_file")
 
     def test_load_physical_simulation_data_short_format(self) -> None:

@@ -2,7 +2,9 @@
 
 import os
 import warnings
-from unittest.mock import Mock, patch
+from collections.abc import Iterator
+from typing import ClassVar
+from unittest.mock import Mock
 
 import lightning as pl
 import numpy as np
@@ -14,11 +16,80 @@ from mcmlnet.training.data_loading.preprocessing import PreProcessor
 from mcmlnet.training.models.base_model import BaseModel
 from mcmlnet.utils.convenience import (
     batch_inputs_to_three_layer_model,
+    infer_model_device,
     load_trained_model,
     predict_in_batches,
     prepare_surrogate_model_data,
     run_model_from_physical_data,
+    warn_out_of_range,
 )
+
+
+class RecordingLinearModel(pl.LightningModule):
+    """Simple model that records forward-call metadata for batch tests."""
+
+    def __init__(self, in_features: int = 3, out_features: int = 5) -> None:
+        super().__init__()
+        self.layer = torch.nn.Linear(in_features, out_features)
+        self.call_count = 0
+        self.seen_devices: list[torch.device] = []
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.call_count += 1
+        self.seen_devices.append(x.device)
+        return self.layer(x)
+
+
+class OOMOnceModel(pl.LightningModule):
+    """Model that raises OOM for batches larger than a threshold."""
+
+    def __init__(self, max_batch_size: int) -> None:
+        super().__init__()
+        self.max_batch_size = max_batch_size
+        self.call_count = 0
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.call_count += 1
+        if len(x) > self.max_batch_size:
+            raise torch.OutOfMemoryError("simulated oom")
+        return torch.ones(len(x), 1, device=x.device)
+
+
+class AlwaysOOMModel(pl.LightningModule):
+    """Model that always raises an OOM error."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.call_count = 0
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.call_count += 1
+        raise torch.OutOfMemoryError("simulated oom")
+
+
+class BufferOnlyModel(pl.LightningModule):
+    """Model that exposes a device only through registered buffers."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.register_buffer("buffer", torch.ones(1))
+
+
+class NoStateModel:
+    """Minimal model-like object without parameters, buffers, or device."""
+
+    def parameters(self) -> Iterator[None]:
+        return iter(())
+
+    def buffers(self) -> Iterator[None]:
+        return iter(())
+
+
+class DeviceAttrModel(NoStateModel):
+    """Minimal model-like object exposing only a device attribute."""
+
+    def __init__(self, device: torch.device | str) -> None:
+        self.device = device
 
 
 def test_load_trained_model(caplog: pytest.LogCaptureFixture) -> None:
@@ -72,86 +143,145 @@ def test_prepare_surrogate_model_data_success() -> None:
         preprocessor.reset_mock()
 
 
+class TestInferModelDevice:
+    """Direct tests for infer_model_device branch selection."""
+
+    def test_prefers_parameter_device(self) -> None:
+        """Parameters should take precedence over all other device hints."""
+        model = RecordingLinearModel()
+
+        assert infer_model_device(model, fallback="meta") == model.layer.weight.device
+
+    def test_uses_buffer_device_when_no_parameters_exist(self) -> None:
+        """Buffers should be used when the model has no parameters."""
+        model = BufferOnlyModel()
+
+        assert infer_model_device(model, fallback="meta") == model.buffer.device
+
+    def test_uses_torch_device_attribute_when_present(self) -> None:
+        """A torch.device attribute should be respected."""
+        model = DeviceAttrModel(torch.device("cpu"))
+
+        assert infer_model_device(model, fallback="meta") == torch.device("cpu")
+
+    def test_uses_string_device_attribute_when_present(self) -> None:
+        """A string device attribute should be converted to torch.device."""
+        model = DeviceAttrModel("cpu")
+
+        assert infer_model_device(model, fallback="meta") == torch.device("cpu")
+
+    def test_returns_fallback_when_no_other_device_signal_exists(self) -> None:
+        """Fallback should be used only when no device information exists."""
+        model = NoStateModel()
+
+        assert infer_model_device(model, fallback="cpu") == torch.device("cpu")
+
+
 class TestPredictInBatches:
     """Test cases for predict_in_batches function."""
 
     def test_predict_in_batches_single_batch(self) -> None:
         """Test prediction with single batch."""
-        model = Mock(spec=pl.LightningModule)
-        model.return_value = torch.randn(10, 5)
-        model.to = Mock()
-
+        model = RecordingLinearModel()
         data = torch.randn(10, 3)
 
-        with patch("torch.cuda.is_available", return_value=False):
-            result = predict_in_batches(model, data, batch_size=-1)
+        result = predict_in_batches(model, data, batch_size=-1)
 
-            assert isinstance(result, torch.Tensor)
-            assert result.shape == (10, 5)
-            model.to.assert_called_once_with("cpu")
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (10, 5)
+        assert result.device.type == "cpu"
+        assert result.requires_grad is False
+        assert model.call_count == 1
 
     def test_predict_in_batches_large_batch_size(self) -> None:
         """Test prediction with batch size larger than data."""
-        model = Mock(spec=pl.LightningModule)
-        model.return_value = torch.randn(10, 5)
-        model.to = Mock()
-
+        model = RecordingLinearModel()
         data = torch.randn(10, 3)
 
-        with patch("torch.cuda.is_available", return_value=False):
-            result = predict_in_batches(model, data, batch_size=20)
+        result = predict_in_batches(model, data, batch_size=20)
 
-            assert isinstance(result, torch.Tensor)
-            assert result.shape == (10, 5)
-            assert model.call_count == 1
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (10, 5)
+        assert result.device.type == "cpu"
+        assert model.call_count == 1
 
     def test_predict_in_batches_multiple_batches(self) -> None:
         """Test prediction with multiple batches."""
-        model = Mock(spec=pl.LightningModule)
-        model.return_value = torch.randn(5, 5)
-        model.to = Mock()
-
+        model = RecordingLinearModel()
         data = torch.randn(10, 3)
 
-        with patch("torch.cuda.is_available", return_value=False):
-            result = predict_in_batches(model, data, batch_size=5)
+        result = predict_in_batches(model, data, batch_size=5)
 
-            assert isinstance(result, torch.Tensor)
-            assert result.shape == (10, 5)
-            assert model.call_count == 2  # Called twice for 2 batches
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (10, 5)
+        assert result.device.type == "cpu"
+        assert model.call_count == 2
 
-    @pytest.mark.skipif(  # type: ignore[misc]
-        not torch.cuda.is_available(), reason="CUDA not available"
-    )
-    @pytest.mark.parametrize("cuda_available", [True, False])  # type: ignore[misc]
-    def test_predict_in_batches_data_device_transfer(
-        self, cuda_available: bool
-    ) -> None:
-        """Test that data is transferred to correct device."""
-        model = Mock(spec=pl.LightningModule)
-        model.return_value = torch.randn(10, 5)
-        model.to = Mock()
-
+    def test_predict_in_batches_uses_model_device(self) -> None:
+        """Test that input batches are moved to the model device."""
+        model = RecordingLinearModel()
         data = torch.randn(10, 3)
+        result = predict_in_batches(model, data, batch_size=5)
 
-        with patch("torch.cuda.is_available", return_value=cuda_available):
-            result = predict_in_batches(model, data, batch_size=10)
-
-            assert isinstance(result, torch.Tensor)
-            called_data = model.call_args[0][0]
-            model.assert_called_once()
-            if cuda_available:
-                assert called_data.device.type == "cuda"
-            else:
-                assert called_data.device.type == "cpu"
+        assert isinstance(result, torch.Tensor)
+        assert model.seen_devices
+        assert all(device == model.layer.weight.device for device in model.seen_devices)
 
     def test_predict_in_batches_empty_data(self) -> None:
         """Test prediction with empty data."""
-        model = Mock(spec=pl.LightningModule)
-        model.to = Mock()
+        model = RecordingLinearModel()
 
-        with pytest.raises(RuntimeError, match="expected a non-empty list of Tensors"):
+        with pytest.raises(ValueError, match="Input data must not be empty"):
             predict_in_batches(model, torch.empty(0, 3), batch_size=-1)
+
+    def test_predict_in_batches_invalid_batch_size(self) -> None:
+        """Test invalid batch sizes are rejected."""
+        model = RecordingLinearModel()
+
+        with pytest.raises(ValueError, match="Batch size must be at least 1 or -1"):
+            predict_in_batches(model, torch.randn(4, 3), batch_size=0)
+
+    def test_predict_in_batches_disables_autograd(self) -> None:
+        """Test that prediction stays detached from autograd."""
+        model = RecordingLinearModel()
+        data = torch.randn(8, 3, requires_grad=True)
+
+        result = predict_in_batches(model, data, batch_size=3)
+
+        assert result.requires_grad is False
+        assert result.device.type == "cpu"
+        assert data.grad is None
+
+    def test_predict_in_batches_progress_bar_alias(self) -> None:
+        """Deprecated progress_bar alias should still control verbosity."""
+        model = RecordingLinearModel()
+        data = torch.randn(10, 3)
+
+        result = predict_in_batches(model, data, batch_size=4, progress_bar=False)
+
+        assert result.shape == (10, 5)
+        assert model.call_count == 3
+
+    def test_predict_in_batches_reduces_batch_size_on_oom(self) -> None:
+        """OOM should trigger a retry with a smaller batch size."""
+        model = OOMOnceModel(max_batch_size=2)
+        data = torch.randn(4, 3)
+
+        result = predict_in_batches(model, data, batch_size=4, verbose=False)
+
+        assert result.shape == (4, 1)
+        assert model.call_count == 3
+
+    def test_predict_in_batches_oom_at_batch_size_one_raises(self) -> None:
+        """Persistent OOM should fail once the batch size reaches one."""
+        model = AlwaysOOMModel()
+        data = torch.randn(3, 3)
+
+        with pytest.raises(
+            RuntimeError,
+            match="Prediction failed with an out-of-memory error even for batch_size=1",
+        ):
+            predict_in_batches(model, data, batch_size=2, verbose=False)
 
 
 class TestBatchInputsToThreeLayerModel:
@@ -244,6 +374,61 @@ class TestBatchInputsToThreeLayerModel:
             ValueError, match="d must share the same shape with the other parameters"
         ):
             batch_inputs_to_three_layer_model(mu_a, mu_s, g, n, d)
+
+
+class TestWarnOutOfRange:
+    """Direct tests for NumPy and Torch range warnings."""
+
+    VALID_STACKED: ClassVar[list[float]] = [
+        0.5,
+        0.5,
+        0.5,
+        420.0,
+        420.0,
+        420.0,
+        0.85,
+        0.85,
+        0.9,
+        1.37,
+        1.37,
+        1.37,
+        0.001,
+        0.001,
+        0.001,
+    ]
+
+    def test_numpy_input_emits_warning(self) -> None:
+        """NumPy inputs outside the expected bounds should warn."""
+        stacked = np.array([self.VALID_STACKED], dtype=np.float32)
+        stacked[0, 8] = 0.99
+
+        with pytest.warns(UserWarning, match=r"g outside \[0.8, 0.95\]"):
+            warn_out_of_range(stacked)
+
+    def test_torch_input_emits_warning(self) -> None:
+        """Torch inputs outside the expected bounds should warn."""
+        stacked = torch.tensor([self.VALID_STACKED], dtype=torch.float32)
+        stacked[0, 8] = 0.3
+
+        with pytest.warns(UserWarning, match=r"g outside \[0.8, 0.95\]"):
+            warn_out_of_range(stacked)
+
+    @pytest.mark.parametrize(
+        "stacked",
+        [  # type: ignore[misc]
+            np.array([VALID_STACKED], dtype=np.float32),
+            torch.tensor([VALID_STACKED], dtype=torch.float32),
+        ],
+    )
+    def test_in_range_input_does_not_warn(
+        self, stacked: np.ndarray | torch.Tensor
+    ) -> None:
+        """Inputs within bounds should stay silent for both array types."""
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            warn_out_of_range(stacked)
+
+        assert not record
 
 
 class TestRunModelFromPhysicalData:

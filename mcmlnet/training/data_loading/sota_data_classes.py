@@ -9,11 +9,14 @@ import torch
 from torch.utils.data import Dataset
 
 from mcmlnet.experiments.data_loaders.simulation import ManojlovicSimulationLoader
+from mcmlnet.utils.env import require_env
 from mcmlnet.utils.logging import setup_logging
 
 logger = setup_logging(level="info", logger_name=__name__)
 
-BASE_DIR = os.path.join(os.environ["data_dir"], "raw/related_work_reimplemented/")
+
+def _get_base_dir() -> str:
+    return os.path.join(require_env("data_dir"), "raw/related_work_reimplemented/")
 
 
 class SOTAPreprocessor:
@@ -83,7 +86,9 @@ class SOTAPreprocessor:
         if self.n_wavelengths != 1:
             raise ValueError("LAN LHS dataset only supports n_wavelengths=1")
 
-        data = pd.read_parquet(os.path.join(BASE_DIR, "lan_lhs_2023_resim.parquet"))
+        data = pd.read_parquet(
+            os.path.join(_get_base_dir(), "lan_lhs_2023_resim.parquet")
+        )
         self.data = torch.from_numpy(
             data.drop(columns="layer [top first]").to_numpy()
         ).float()
@@ -97,7 +102,9 @@ class SOTAPreprocessor:
         if self.n_wavelengths != 1:
             raise ValueError("LAN dataset only supports n_wavelengths=1")
 
-        data_lan = pd.read_parquet(os.path.join(BASE_DIR, "lan_2023_resim.parquet"))
+        data_lan = pd.read_parquet(
+            os.path.join(_get_base_dir(), "lan_2023_resim.parquet")
+        )
         self.data = torch.from_numpy(
             data_lan.drop(columns="layer [top first]").to_numpy()
         ).float()
@@ -111,7 +118,9 @@ class SOTAPreprocessor:
         if self.n_wavelengths != 1:
             raise ValueError("TSUI dataset only supports n_wavelengths=1")
 
-        data_tsui = pd.read_parquet(os.path.join(BASE_DIR, "tsui_2018_resim.parquet"))
+        data_tsui = pd.read_parquet(
+            os.path.join(_get_base_dir(), "tsui_2018_resim.parquet")
+        )
         self.data = torch.from_numpy(
             data_tsui.drop(columns="layer [top first]").to_numpy()
         ).float()

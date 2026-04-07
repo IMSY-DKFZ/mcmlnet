@@ -5,11 +5,10 @@ import os
 import numpy as np
 import pandas as pd
 import torch
-from dotenv import load_dotenv
 
+from mcmlnet.utils.env import require_env
 from mcmlnet.utils.logging import setup_logging
 
-load_dotenv()
 logger = setup_logging(level="info", logger_name=__name__)
 
 
@@ -163,7 +162,7 @@ class SimulationDataLoader:
         self,
         dataset_name: str = "raw/base_physio_and_physical_simulations/"
         "physiological_tissue_model_1M_photons.parquet",
-        origin: str = os.environ["data_dir"],
+        origin: str | None = None,
     ) -> torch.Tensor:
         """
         Load standard Monte Carlo simulations by name.
@@ -180,6 +179,7 @@ class SimulationDataLoader:
             FileNotFoundError: If the dataset is not found.
         """
         self.is_physical = False
+        origin = require_env("data_dir") if origin is None else origin
 
         # Create absolute path to dataset
         dir = os.path.join(origin, dataset_name)
@@ -214,7 +214,7 @@ class SimulationDataLoader:
         self,
         dataset_name: str,
         n_wavelengths: int,
-        origin: str = os.environ["data_dir"],
+        origin: str | None = None,
     ) -> torch.Tensor:
         """
         Load parquet file containing physical parameters and reflectance data.
@@ -231,6 +231,7 @@ class SimulationDataLoader:
             AssertionError: If the data shape does not match expected dimensions.
         """
         self.is_physical = True
+        origin = require_env("data_dir") if origin is None else origin
 
         # Load parquet file
         simulations = pd.read_parquet(os.path.join(origin, dataset_name)).to_numpy()
@@ -315,7 +316,7 @@ class SimulationDataLoader:
         self,
         dataset_name: str,
         n_wavelengths: int | None = None,
-        origin: str = os.environ["data_dir"],
+        origin: str | None = None,
     ) -> torch.Tensor:
         """
         Load data from a dataset. Unified for both reflectance and physical parameters.
@@ -325,6 +326,7 @@ class SimulationDataLoader:
             n_wavelengths: int, number of wavelengths.
             origin: str, path to origin of parquet file.
         """
+        origin = require_env("data_dir") if origin is None else origin
         if "physical" in dataset_name.split("/")[-1]:
             n_wvl = n_wavelengths or self.n_wavelengths
             return self.load_physical_simulation_data(dataset_name, n_wvl, origin)  # type: ignore [arg-type]

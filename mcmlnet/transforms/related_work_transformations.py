@@ -15,6 +15,7 @@ from mcmlnet.constants import (
     RAYLEIGH_EXPONENT,
     REFERENCE_WAVELENGTH_M,
 )
+from mcmlnet.utils.env import require_env
 from mcmlnet.utils.haemoglobin_extinctions import (
     get_haemoglobin_extinction_coefficients,
 )
@@ -65,7 +66,7 @@ def get_mu_a_epidermis(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/epidermis_qu.txt"
+            require_env("data_dir"), "chromophores/epidermis_qu.txt"
         )
     epi_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 
@@ -97,7 +98,7 @@ def get_mu_a_water(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/water_buiteveld.txt"
+            require_env("data_dir"), "chromophores/water_buiteveld.txt"
         )
     water_lut = validate_file_and_load(reference_filename, skiprows=5, min_cols=2)
 
@@ -128,7 +129,7 @@ def get_mu_a_collagen(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/collagen_nunez.txt"
+            require_env("data_dir"), "chromophores/collagen_nunez.txt"
         )
     collagen_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 
@@ -161,7 +162,7 @@ def get_oxidised_cytochrome_c_oxidase(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/oxidised_cytochrome_c_oxidase_mason.txt"
+            require_env("data_dir"), "chromophores/oxidised_cytochrome_c_oxidase_mason.txt"
         )
     cyto_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 
@@ -201,7 +202,7 @@ def get_reduced_cytochrome_c_oxidase(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/reduced_cytochrome_c_oxidase_mason.txt"
+            require_env("data_dir"), "chromophores/reduced_cytochrome_c_oxidase_mason.txt"
         )
     cyto_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 
@@ -241,7 +242,7 @@ def get_bilirubin_extended_upper_range(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/bilirubin.txt"
+            require_env("data_dir"), "chromophores/bilirubin.txt"
         )
     bili_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 

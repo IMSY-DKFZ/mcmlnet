@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 
 from mcmlnet.utils.caching import (
@@ -113,6 +114,19 @@ class TestCachingDecorators:
         out2 = cached_func()
         assert isinstance(out2, np.ndarray)
         assert np.array_equal(out2, self.arr)
+
+    def test_np_cache_to_file_requires_cache_dir_for_relative_paths(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Relative cache paths should resolve env vars lazily."""
+
+        def func() -> np.ndarray:
+            return copy.deepcopy(self.arr)
+
+        monkeypatch.delenv("cache_dir", raising=False)
+
+        with pytest.raises(RuntimeError, match="Environment variable 'cache_dir'"):
+            np_cache_to_file(func, "relative/test.npz")
 
     def test_np_cache_to_file_tuple(self, tmp_path: Path) -> None:
         """Test numpy caching decorator with tuple return."""

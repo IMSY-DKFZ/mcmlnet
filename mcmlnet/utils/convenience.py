@@ -6,13 +6,13 @@ import warnings
 import lightning as pl
 import numpy as np
 import torch
-from hydra.utils import instantiate
+from hydra.utils import get_class, instantiate
 from omegaconf import DictConfig, OmegaConf
 from rich.progress import track
-from torch.utils.data import DataLoader, TensorDataset
 
 from mcmlnet.training.data_loading.preprocessing import PreProcessor
 from mcmlnet.training.models.base_model import BaseModel
+from mcmlnet.utils.env import require_env
 from mcmlnet.utils.load_configs import load_config
 from mcmlnet.utils.logging import setup_logging
 
@@ -28,7 +28,14 @@ PARAM_BOUNDS = {
 }
 
 
-def _warn_out_of_range(stacked: np.ndarray) -> None:
+def warn_out_of_range(stacked: np.ndarray | torch.Tensor) -> None:
+    """Warn when stacked physical parameters fall outside the training range.
+
+    Args:
+        stacked: Batched physical parameters with shape ``(batch_size, 15)`` in the
+            order ``[3x mu_a, 3x mu_s, 3x g, 3x n, 3x d]``. Supports both NumPy
+            arrays and Torch tensors.
+    """
     # Reshape stacked data: (batch_size, 15) -> (batch_size, 5 params, 3 layers)
     grouped = stacked.reshape(stacked.shape[0], 5, 3)
     names = ["mu_a", "mu_s", "g", "n", "d"]
@@ -37,19 +44,39 @@ def _warn_out_of_range(stacked: np.ndarray) -> None:
         vals = grouped[:, i, :]
         lo, hi = PARAM_BOUNDS[name]
 
-        out_of_range = (~np.isfinite(vals)) | (vals < lo) | (vals > hi)
+        if isinstance(vals, torch.Tensor):
+            out_of_range = (~torch.isfinite(vals)) | (vals < lo) | (vals > hi)
+        else:
+            out_of_range = (~np.isfinite(vals)) | (vals < lo) | (vals > hi)
 
-        if out_of_range.any():
+        if bool(out_of_range.any()):
             clipped = vals[out_of_range]
+            min_value = (
+                clipped.min().item()
+                if isinstance(clipped, torch.Tensor)
+                else clipped.min()
+            )
+            max_value = (
+                clipped.max().item()
+                if isinstance(clipped, torch.Tensor)
+                else clipped.max()
+            )
+            count = (
+                int(out_of_range.sum().item())
+                if isinstance(out_of_range, torch.Tensor)
+                else int(out_of_range.sum())
+            )
             warnings.warn(
-                f"{name} outside [{lo}, {hi}] for {out_of_range.sum()} samples "
-                f"(min={clipped.min():.3g}, max={clipped.max():.3g})",
+                f"{name} outside [{lo}, {hi}] for {count} samples "
+                f"(min={min_value:.3g}, max={max_value:.3g})",
                 stacklevel=2,
             )
 
 
 def load_trained_model(
-    base_path: str, checkpoint_path: str, model_type: type[BaseModel]
+    base_path: str,
+    checkpoint_path: str,
+    model_type: type[BaseModel] | None = None,
 ) -> tuple[BaseModel, PreProcessor, DictConfig]:
     """Load a trained model with its configuration and preprocessor.
 
@@ -73,8 +100,17 @@ def load_trained_model(
         preprocessor.norm_2 = torch.tensor(preprocessor.norm_2)
     logger.info(f"Preprocessor norm.s: {preprocessor.norm_1}, {preprocessor.norm_2}")
 
-    # Load model with config
-    model = model_type.load_from_checkpoint(
+    model_target = loaded_config.model.get("_target_")
+    if model_target:
+        resolved_model_type = get_class(model_target)
+    elif model_type is not None:
+        resolved_model_type = model_type
+    else:
+        raise ValueError(
+            "Could not infer model class: model._target_ missing in config_log.yaml"
+        )
+
+    model = resolved_model_type.load_from_checkpoint(
         os.path.join(base_path, checkpoint_path),
         **loaded_config.model,
         cfg=loaded_config,
@@ -111,60 +147,112 @@ def prepare_surrogate_model_data(
     return data
 
 
+def infer_model_device(
+    model: pl.LightningModule, *, fallback: torch.device | str
+) -> torch.device:
+    """Infer the device a model already lives on without moving it."""
+    fallback_device = torch.device(fallback)
+
+    parameter = next(model.parameters(), None)
+    if parameter is not None:
+        return parameter.device
+
+    buffer = next(model.buffers(), None)
+    if buffer is not None:
+        return buffer.device
+
+    model_device = getattr(model, "device", None)
+    if isinstance(model_device, torch.device):
+        return model_device
+    if isinstance(model_device, str):
+        return torch.device(model_device)
+
+    return fallback_device
+
+
 def predict_in_batches(
     model: pl.LightningModule,
     data: torch.Tensor,
     batch_size: int = -1,
-    progress_bar: bool = True,
-    requires_grad: bool = False,
+    verbose: bool = True,
+    *,
+    progress_bar: bool | None = None,
 ) -> torch.Tensor:
     """Make predictions in batches to avoid memory issues.
+
+    This helper is intentionally inference-only. For autograd-enabled use cases
+    or very small inputs where you want the absolute minimum overhead, call
+    ``model(...)`` directly instead of going through this batching wrapper.
 
     Args:
         model: The model to use for prediction.
         data: The PREPROCESSED/ TRANSFORMED input data.
         batch_size: Batch size for prediction (-1 for single batch).
-        progress_bar: Whether to use rich.progress track or not.
-        requires_grad: Whether to retain the gradient or not.
+        verbose: Whether to show the progress of the neural network batch inference.
+        progress_bar: Deprecated alias for ``verbose`` kept for compatibility.
 
     Returns:
         Model predictions.
     """
-    # Create a TensorDataset and DataLoader
-    dataset = TensorDataset(data)
-
+    if len(data) == 0:
+        raise ValueError("Input data must not be empty.")
+    if progress_bar is not None:
+        verbose = progress_bar
     if batch_size == -1:
         batch_size = len(data)
+    elif batch_size < 1:
+        raise ValueError("Batch size must be at least 1 or -1 for a single batch.")
 
-    predictions = []
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
+    model_device = infer_model_device(model, fallback=data.device)
 
-    ctx = torch.no_grad() if not requires_grad else torch.enable_grad()
-    with ctx:
-        # Reduce batch size while out of memory error occurs
-        while batch_size > 1:
-            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-            if progress_bar:
-                dataloader = track(
-                    dataloader, description="Making predictions", transient=True
-                )
+    def predict_batch(batch: torch.Tensor) -> torch.Tensor:
+        return model(batch.to(model_device)).detach().cpu()
+
+    if batch_size >= len(data):
+        with torch.inference_mode():
             try:
-                for _i, batch in enumerate(dataloader):
-                    # Get first element from batch-tuple
-                    preds = model(batch[0].to(device))
-                    predictions.append(preds if requires_grad else preds.detach().cpu())
-            except torch.OutOfMemoryError:
-                batch_size //= 2
+                return predict_batch(data)
+            except torch.OutOfMemoryError as err:
+                if len(data) == 1:
+                    raise RuntimeError(
+                        "Prediction failed with an out-of-memory error even for "
+                        "batch_size=1."
+                    ) from err
+                batch_size = max(len(data) // 2, 1)
+                if model_device.type == "cuda":
+                    torch.cuda.empty_cache()
                 logger.warning(
-                    "torch out of memory! Reducing batch size to "
-                    f"{batch_size} and repeating ..."
+                    f"Reducing batch size to {batch_size} to avoid torch OOM!"
+                )
+
+    predictions: list[torch.Tensor] = []
+    with torch.inference_mode():
+        while True:
+            predictions.clear()
+            offsets = range(0, len(data), batch_size)
+            iterator = (
+                track(offsets, description="Making predictions", transient=True)
+                if verbose
+                else offsets
+            )
+            try:
+                for start in iterator:
+                    predictions.append(predict_batch(data[start : start + batch_size]))
+            except torch.OutOfMemoryError as err:
+                if batch_size == 1:
+                    raise RuntimeError(
+                        "Prediction failed with an out-of-memory error even for "
+                        "batch_size=1."
+                    ) from err
+                batch_size = max(batch_size // 2, 1)
+                predictions.clear()
+                if model_device.type == "cuda":
+                    torch.cuda.empty_cache()
+                logger.warning(
+                    f"Reducing batch size to {batch_size} to avoid torch OOM!"
                 )
             else:
-                break
-
-    # Concatenate all predictions
-    return torch.cat(predictions, dim=0)
+                return torch.cat(predictions, dim=0)
 
 
 def batch_inputs_to_three_layer_model(
@@ -279,7 +367,7 @@ def run_model_from_physical_data(
     if model_base_path is None or model_checkpoint_path is None:
         cfg = load_config()
         model_base_path = os.path.join(
-            os.environ["data_dir"], cfg["surrogate"]["issi_model"]["base_path"]
+            require_env("data_dir"), cfg["surrogate"]["issi_model"]["base_path"]
         )
         model_checkpoint_path = cfg["surrogate"]["issi_model"]["checkpoint_path"]
 
@@ -294,7 +382,7 @@ def run_model_from_physical_data(
 
     # Create default three-layer tissue model
     data = batch_inputs_to_three_layer_model(mu_a, mu_s, g, n, d)
-    _warn_out_of_range(data)
+    warn_out_of_range(data)
     # Add wavelength axis and dummy outputs for shape compatibility and preprocess data
     data = torch.from_numpy(data).unsqueeze(1).float()
     data = torch.cat((data, torch.zeros_like(data)[..., [0]]), dim=-1)
@@ -304,7 +392,6 @@ def run_model_from_physical_data(
         model,
         data,
         batch_size=inference_batch_size,
-        requires_grad=False,
     )
 
     if add_specular_reflectance:
@@ -318,6 +405,6 @@ def run_model_from_physical_data(
         n_surface = n_surface[:, :1]
 
         specular = ((n_surface - n_air) ** 2) / ((n_surface + n_air) ** 2)
-        reflectance += specular.expand_as(reflectance)
+        reflectance = reflectance + specular.expand_as(reflectance)
 
     return reflectance.detach().cpu().numpy()

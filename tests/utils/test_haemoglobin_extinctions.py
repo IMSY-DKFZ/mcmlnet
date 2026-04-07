@@ -12,6 +12,15 @@ from mcmlnet.utils.haemoglobin_extinctions import (
 
 
 class TestGetHaemoglobinExtinctionCoefficients:
+    def test_default_path_requires_data_dir_at_runtime(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing data_dir should fail when resolving the default path."""
+        monkeypatch.delenv("data_dir", raising=False)
+
+        with pytest.raises(RuntimeError, match="Environment variable 'data_dir'"):
+            get_haemoglobin_extinction_coefficients()
+
     def test_file_is_found(self) -> None:
         """Test that the default file is found and loaded."""
         interp1, interp2, bounds = get_haemoglobin_extinction_coefficients()
