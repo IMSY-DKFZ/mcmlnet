@@ -48,7 +48,7 @@ OUTPUT_DIR = os.path.join(
 )
 N_WVL = 351
 IGNORE_A = True
-VERBOSE = True
+VERBOSE = False
 TIMEOUT = None
 N_LAYERS = 3
 
@@ -170,7 +170,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Data distribution type",
         type=str,
         default="lhs_uniform",
-        choices=["uniform", "lhs_uniform", "loguniform", "lhs_loguniform"],
+        choices=["uniform", "lhs_uniform", "loguniform", "lhs_loguniform", "csv"],
     )
 
     return parser.parse_args()
@@ -271,13 +271,23 @@ def generate_physiological_parameters(
         if os.path.isfile(reference):
             # Load parameter data from file and run sanity parameter value checks
             params = pd.read_csv(reference, header=[0, 1])
-            params = params.to_numpy()[:, :24]
+            params = params.to_numpy()
+
+            n_layers = 3
+            n_physio_params = 8
+
+            if not params.shape[1] == n_layers * n_physio_params:
+                raise ValueError(
+                    f"Unsupported number of parameter columns: {params.shape[1]}"
+                )
 
             for param_id, (name, param_range) in enumerate(PHYSIO_PARAM_RANGES.items()):
-                all_layer_param_ids = [param_id + i * 8 for i in range(3)]
-                if not np.all(params[:, all_layer_param_ids]) >= param_range[0]:
+                all_layer_param_ids = [
+                    param_id + i * n_physio_params for i in range(n_layers)
+                ]
+                if not np.all(params[:, all_layer_param_ids] >= param_range[0]):
                     raise AssertionError(f"Too small {name} values detected!")
-                if not np.all(params[:, all_layer_param_ids]) <= param_range[1]:
+                if not np.all(params[:, all_layer_param_ids] <= param_range[1]):
                     raise AssertionError(f"Too large {name} values detected!")
 
             if len(params) != n_samples:
@@ -364,6 +374,8 @@ def _configure_batch_processing(
         # Single batch processing
         mco_folder = os.path.join(OUTPUT_DIR, folder_name, f"mco_{red_n_wvl}_wvl_all/")
         batch_range = (0, -1)
+    elif run_id < 0 or run_id >= n_runs:
+        raise ValueError(f"run_id should be in [0, {n_runs}) but is {run_id=}!")
     else:
         # Multi-batch processing
         mco_folder = os.path.join(
@@ -451,6 +463,7 @@ def run_monte_carlo_simulations(
         wavelengths=reduced_wvl,
         nr_photons=nr_photons,
         ignore_a=IGNORE_A,
+        mco_folder=mco_folder,
         verbose=VERBOSE,
         timeout=TIMEOUT,
     )
@@ -468,6 +481,7 @@ def run_monte_carlo_simulations(
         save_dir=os.path.join(OUTPUT_DIR, folder_name),
         batch_size=batch_size,
         batch_range=batch_range,
+        verbose=VERBOSE,
     )
 
 

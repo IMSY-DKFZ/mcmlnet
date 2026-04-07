@@ -19,8 +19,8 @@ from mcmlnet.transforms.related_work_transformations import (
     get_mu_a_collagen,
     get_mu_a_epidermis,
     get_mu_a_water,
-    get_oxidised_cytochrome_c,
-    get_reduced_cytochrome_c,
+    get_oxidised_cytochrome_c_oxidase,
+    get_reduced_cytochrome_c_oxidase,
     validate_file_and_load,
 )
 
@@ -146,18 +146,18 @@ class TestGetMuACollagen:
             os.remove(fname)
 
 
-class TestGetOxidisedCytochromeC:
-    """Test cases for get_oxidised_cytochrome_c function."""
+class TestGetOxidisedCytochromeCOxidase:
+    """Test cases for get_oxidised_cytochrome_c_oxidase function."""
 
     def test_file_is_found(self) -> None:
-        interp, bounds = get_oxidised_cytochrome_c()
+        interp, bounds = get_oxidised_cytochrome_c_oxidase()
         assert callable(interp)
         assert isinstance(bounds, tuple)
         assert bounds[0] < bounds[1]
 
     def test_file_not_found(self) -> None:
         with pytest.raises(FileNotFoundError):
-            get_oxidised_cytochrome_c("/not/a/real/file.txt")
+            get_oxidised_cytochrome_c_oxidase("/not/a/real/file.txt")
 
     def test_valid_file(self) -> None:
         arr = np.array([[600, 0.1], [800, 0.2], [960, 0.3]])
@@ -167,7 +167,7 @@ class TestGetOxidisedCytochromeC:
             np.savetxt(f, arr)
             fname = f.name
         try:
-            func, bounds = get_oxidised_cytochrome_c(fname, smooth=False)
+            func, bounds = get_oxidised_cytochrome_c_oxidase(fname, smooth=False)
             x = arr[0, 0] * 1e-9
             assert bounds[0] <= x <= bounds[1]
             assert func(x) == pytest.approx(arr[0, 1] * 1e2)
@@ -175,18 +175,18 @@ class TestGetOxidisedCytochromeC:
             os.remove(fname)
 
 
-class TestGetReducedCytochromeC:
-    """Test cases for get_reduced_cytochrome_c function."""
+class TestGetReducedCytochromeCOxidase:
+    """Test cases for get_reduced_cytochrome_c_oxidase function."""
 
     def test_file_is_found(self) -> None:
-        interp, bounds = get_reduced_cytochrome_c()
+        interp, bounds = get_reduced_cytochrome_c_oxidase()
         assert callable(interp)
         assert isinstance(bounds, tuple)
         assert bounds[0] < bounds[1]
 
     def test_file_not_found(self) -> None:
         with pytest.raises(FileNotFoundError):
-            get_reduced_cytochrome_c("/not/a/real/file.txt")
+            get_reduced_cytochrome_c_oxidase("/not/a/real/file.txt")
 
     def test_valid_file(self) -> None:
         arr = np.array([[600, 0.1], [800, 0.2], [960, 0.3]])
@@ -196,7 +196,7 @@ class TestGetReducedCytochromeC:
             np.savetxt(f, arr)
             fname = f.name
         try:
-            func, bounds = get_reduced_cytochrome_c(fname, smooth=False)
+            func, bounds = get_reduced_cytochrome_c_oxidase(fname, smooth=False)
             x = arr[0, 0] * 1e-9
             assert bounds[0] <= x <= bounds[1]
             assert func(x) == pytest.approx(arr[0, 1] * 1e2)
@@ -605,59 +605,59 @@ class TestManojlovicTransformation:
         with pytest.raises(ValueError, match="bilirubin concentration f_brub"):
             transformation._bilirubin_absorption(f_brub)
 
-    def test_cytochrome_c_ox_absorption(self) -> None:
-        """Test oxidized cytochrome c absorption computation."""
+    def test_ox_cytochrome_c_oxidase_absorption(self) -> None:
+        """Test oxidized cytochrome c oxidase absorption computation."""
         transformation = ManojlovicTransformation(self.wavelengths)
 
-        result = transformation._cytochrome_c_ox_absorption(self.fcyto)
+        result = transformation._ox_cytochrome_c_oxidase_absorption(self.fcyto)
 
         assert result.shape == (2, len(self.wavelengths))
         assert torch.all(result >= 0)
 
-    def test_cytochrome_c_ox_absorption_invalid_range(self) -> None:
-        """Test error with invalid oxidized cytochrome c fraction range."""
+    def test_ox_cytochrome_c_oxidase_absorption_invalid_range(self) -> None:
+        """Test error with invalid oxidized cytochrome c oxidase fraction range."""
         transformation = ManojlovicTransformation(self.wavelengths)
 
         f_cyto = torch.tensor([2.5])  # > 2
 
         with pytest.raises(
-            ValueError, match="oxidised cytochrome c concentration f_cyto"
+            ValueError, match="oxidised cytochrome c oxidase concentration f_cyto"
         ):
-            transformation._cytochrome_c_ox_absorption(f_cyto)
+            transformation._ox_cytochrome_c_oxidase_absorption(f_cyto)
 
         f_cyto = torch.tensor([0.0])  # < 1e-7
 
         with pytest.raises(
-            ValueError, match="oxidised cytochrome c concentration f_cyto"
+            ValueError, match="oxidised cytochrome c oxidase concentration f_cyto"
         ):
-            transformation._cytochrome_c_ox_absorption(f_cyto)
+            transformation._ox_cytochrome_c_oxidase_absorption(f_cyto)
 
-    def test_cytochrome_c_red_absorption(self) -> None:
-        """Test reduced cytochrome c absorption computation."""
+    def test_red_cytochrome_c_oxidase_absorption(self) -> None:
+        """Test reduced cytochrome c oxidase absorption computation."""
         transformation = ManojlovicTransformation(self.wavelengths)
 
-        result = transformation._cytochrome_c_red_absorption(self.fcyto_red)
+        result = transformation._red_cytochrome_c_oxidase_absorption(self.fcyto_red)
 
         assert result.shape == (2, len(self.wavelengths))
         assert torch.all(result >= 0)
 
-    def test_cytochrome_c_red_absorption_invalid_range(self) -> None:
-        """Test error with invalid reduced cytochrome c fraction range."""
+    def test_red_cytochrome_c_oxidase_absorption_invalid_range(self) -> None:
+        """Test error with invalid reduced cytochrome c oxidase fraction range."""
         transformation = ManojlovicTransformation(self.wavelengths)
 
         f_cyto_red = torch.tensor([2.5])  # > 2
 
         with pytest.raises(
-            ValueError, match="reduced cytochrome c concentration f_cyto"
+            ValueError, match="reduced cytochrome c oxidase concentration f_cyto"
         ):
-            transformation._cytochrome_c_red_absorption(f_cyto_red)
+            transformation._red_cytochrome_c_oxidase_absorption(f_cyto_red)
 
         f_cyto_red = torch.tensor([0.0])  # < 1e-7
 
         with pytest.raises(
-            ValueError, match="reduced cytochrome c concentration f_cyto"
+            ValueError, match="reduced cytochrome c oxidase concentration f_cyto"
         ):
-            transformation._cytochrome_c_red_absorption(f_cyto_red)
+            transformation._red_cytochrome_c_oxidase_absorption(f_cyto_red)
 
     def test_refractive_index(self) -> None:
         """Test refractive index computation."""

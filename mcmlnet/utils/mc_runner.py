@@ -186,7 +186,7 @@ class RecomputeMC:
                 mci_base_folder=self.mco_folder,
                 batch_id=str(id),
                 ignore_a=self.ignore_a,
-                mco_file=self.mco_folder + "batch.mco",
+                mco_file=os.path.join(self.mco_folder, f"batch_{id}.mco"),
                 verbose=self.verbose,
                 timeout=self.timeout,
             )
@@ -201,6 +201,7 @@ class RecomputeMC:
         save_dir: str,
         batch_size: int = 1000,
         batch_range: tuple[int, int] = (0, -1),
+        verbose: bool = True,
     ) -> np.ndarray:
         """
         Run a Monte Carlo simulation on the batch of physiological parameters loaded
@@ -214,6 +215,7 @@ class RecomputeMC:
             batch_size: Number of samples to simulate in each batch
             batch_range: Range of batches to simulate (start, end), where end is -1
                 to simulate all batches until the end of the DataFrame.
+            verbose: Whether to show simulation progress bar.
 
         Returns:
             Reflectance predictions for the simulated batches
@@ -229,9 +231,15 @@ class RecomputeMC:
         # Initialize reflectance storage list
         reflectance = []
 
-        for i in track(
-            range(batch.shape[0] // batch_size), description="Running MC simulation..."
-        ):
+        if verbose:
+            iterator = track(
+                range(batch.shape[0] // batch_size),
+                description="Running MC simulation...",
+            )
+        else:
+            iterator = range(batch.shape[0] // batch_size)
+
+        for i in iterator:
             # Skip if batch is not in range
             if i not in range(*batch_range):
                 continue

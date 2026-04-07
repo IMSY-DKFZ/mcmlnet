@@ -146,11 +146,11 @@ def get_mu_a_collagen(
     return mu_collagen, collagen_bounds
 
 
-def get_oxidised_cytochrome_c(
+def get_oxidised_cytochrome_c_oxidase(
     reference_filename: str | None = None,
     smooth: bool = True,
 ) -> tuple[interp1d, tuple[float, float]]:
-    """Load Mason reference data for extinction of oxidized cytochrome c.
+    """Load Mason reference data for extinction of oxidized cytochrome c oxidase.
 
     Args:
         reference_filename: Path to reference file
@@ -161,7 +161,7 @@ def get_oxidised_cytochrome_c(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/oxidised_cytochrome_c_mason.txt"
+            os.environ["data_dir"], "chromophores/oxidised_cytochrome_c_oxidase_mason.txt"
         )
     cyto_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 
@@ -172,7 +172,7 @@ def get_oxidised_cytochrome_c(
     cyto_lut[:, 1] = cyto_lut[:, 1] * CM_INV_TO_M_INV
 
     if smooth:
-        # Smooth signal because cytochrome c is noisy beyond ~900 nm
+        # Smooth signal because cytochrome c oxidase is noisy beyond ~900 nm
         cyto_lut[:, 1] = savgol_filter(cyto_lut[:, 1], window_length=25, polyorder=3)
 
     # Define interpolation with specific bound values
@@ -186,11 +186,11 @@ def get_oxidised_cytochrome_c(
     return e_cyto, cyto_bounds
 
 
-def get_reduced_cytochrome_c(
+def get_reduced_cytochrome_c_oxidase(
     reference_filename: str | None = None,
     smooth: bool = True,
 ) -> tuple[interp1d, tuple[float, float]]:
-    """Load Mason reference data for extinction of reduced cytochrome c.
+    """Load Mason reference data for extinction of reduced cytochrome c oxidase.
 
     Args:
         reference_filename: Path to reference file
@@ -201,7 +201,7 @@ def get_reduced_cytochrome_c(
     """
     if reference_filename is None:
         reference_filename = os.path.join(
-            os.environ["data_dir"], "chromophores/reduced_cytochrome_c_mason.txt"
+            os.environ["data_dir"], "chromophores/reduced_cytochrome_c_oxidase_mason.txt"
         )
     cyto_lut = validate_file_and_load(reference_filename, skiprows=2, min_cols=2)
 
@@ -212,7 +212,7 @@ def get_reduced_cytochrome_c(
     cyto_lut[:, 1] = cyto_lut[:, 1] * CM_INV_TO_M_INV
 
     if smooth:
-        # Smooth signal because cytochrome c is noisy beyond ~900 nm
+        # Smooth signal because cytochrome c oxidase is noisy beyond ~900 nm
         cyto_lut[:, 1] = savgol_filter(cyto_lut[:, 1], window_length=25, polyorder=3)
 
     # Define interpolation with specific bound values
@@ -576,10 +576,10 @@ class ManojlovicTransformation(Transformation):
         eBrub, _ = get_bilirubin_extended_upper_range()
         self.eBrub = torch.from_numpy(eBrub(self.wavelengths * NM_TO_M)).float()
 
-        # Cytochrome c extinction coefficients are loaded in m^-1 / (M)
-        e_cyto_ox, _ = get_oxidised_cytochrome_c()
+        # Cytochrome c oxidase extinction coefficients are loaded in m^-1 / (M)
+        e_cyto_ox, _ = get_oxidised_cytochrome_c_oxidase()
         self.e_cyto_ox = torch.from_numpy(e_cyto_ox(self.wavelengths * NM_TO_M)).float()
-        e_cyto_red, _ = get_reduced_cytochrome_c()
+        e_cyto_red, _ = get_reduced_cytochrome_c_oxidase()
         self.e_cyto_red = torch.from_numpy(
             e_cyto_red(self.wavelengths * NM_TO_M)
         ).float()
@@ -692,50 +692,50 @@ class ManojlovicTransformation(Transformation):
         a_brub = f_brub[:, None] * self.eBrub[None, :] / 1000
         return a_brub.squeeze()
 
-    def _cytochrome_c_ox_absorption(self, f_cyto: torch.Tensor) -> torch.Tensor:
+    def _ox_cytochrome_c_oxidase_absorption(self, f_cyto: torch.Tensor) -> torch.Tensor:
         """
-        Compute the oxidised cytochrome c absorption coefficient
+        Compute the oxidised cytochrome c oxidase absorption coefficient
         using the Manojlovic model.
 
         Args:
-            f_cyto: Oxidised cytochrome c concentration in mM
+            f_cyto: Oxidised cytochrome c oxidase concentration in mM
 
         Returns:
-            Oxidised cytochrome c absorption coefficient
+            Oxidised cytochrome c oxidase absorption coefficient
 
         Raises:
-            ValueError: If oxidised cytochrome c concentration is not 1D
+            ValueError: If oxidised cytochrome c oxidase concentration is not 1D
                 or out of valid range
         """
         if f_cyto.ndim != 1:
             raise ValueError(f"f_cyto must be 1D tensor, got {f_cyto.ndim}D")
         self.validate_tensor_range(
-            f_cyto, 10**-7, 2, "oxidised cytochrome c concentration f_cyto [mM]"
+            f_cyto, 10**-7, 2, "oxidised cytochrome c oxidase concentration f_cyto [mM]"
         )
 
         # Compute absorption coefficient in m^-1 (f_cyto in mM!)
         ua = f_cyto[:, None] * self.e_cyto_ox[None, :] / 1000
         return ua.squeeze()
 
-    def _cytochrome_c_red_absorption(self, f_cyto: torch.Tensor) -> torch.Tensor:
+    def _red_cytochrome_c_oxidase_absorption(self, f_cyto: torch.Tensor) -> torch.Tensor:
         """
-        Compute the reduced cytochrome c absorption coefficient
+        Compute the reduced cytochrome c oxidase absorption coefficient
         using the Manojlovic model.
 
         Args:
-            f_cyto: Reduced cytochrome c concentration in mM
+            f_cyto: Reduced cytochrome c oxidase concentration in mM
 
         Returns:
-            Reduced cytochrome c absorption coefficient
+            Reduced cytochrome c oxidase absorption coefficient
 
         Raises:
-            ValueError: If reduced cytochrome c concentration is not 1D
+            ValueError: If reduced cytochrome c oxidase concentration is not 1D
                 or out of valid range
         """
         if f_cyto.ndim != 1:
             raise ValueError(f"f_cyto must be 1D tensor, got {f_cyto.ndim}D")
         self.validate_tensor_range(
-            f_cyto, 10**-7, 2, "reduced cytochrome c concentration f_cyto [mM]"
+            f_cyto, 10**-7, 2, "reduced cytochrome c oxidase concentration f_cyto [mM]"
         )
 
         # Compute absorption coefficient in m^-1 (f_cyto in mM!)
@@ -794,8 +794,8 @@ class ManojlovicTransformation(Transformation):
             f_hb: Hemoglobin volume fraction
             f_hbo2: Oxyhemoglobin volume fraction
             f_brub: Bilirubin millimolar concentration
-            f_co: Reduced cytochrome c millimolar concentration
-            f_coo2: Oxidised cytochrome c millimolar concentration
+            f_co: Reduced cytochrome c oxidase millimolar concentration
+            f_coo2: Oxidised cytochrome c oxidase millimolar concentration
 
         Returns:
             Absorption coefficient of the dermis
@@ -804,8 +804,8 @@ class ManojlovicTransformation(Transformation):
             self._hemoglobin_absorption(f_hb)
             + self._oxyhemoglobin_absorption(f_hbo2)
             + self._bilirubin_absorption(f_brub)
-            + self._cytochrome_c_red_absorption(f_co)
-            + self._cytochrome_c_ox_absorption(f_coo2)
+            + self._red_cytochrome_c_oxidase_absorption(f_co)
+            + self._ox_cytochrome_c_oxidase_absorption(f_coo2)
             + self._base_absorption()
         )
 

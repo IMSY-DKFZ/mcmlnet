@@ -24,6 +24,14 @@
 - **Surrogate Model (Re-)Training**: PyTorch Lightning-based training pipelines for forward surrogate models
 - **Hyperparameter Tuning**: Hyperparameter optimization with Optuna and advanced optimizers (Sophia)
 
+## [Erratum: Cytochrome C Oxidase](https://doi.org/10.1117/1.JBO.31.3.039801)
+
+In the original article, the enzyme "cytochrome c" was incorrectly referred to in two locations in the main text and once in the acknowledgements. These instances should read "cytochrome c oxidase" (CCO). Accordingly, we updated the CCO chromophore file names and loading functions. In addition, with kind support from Prof. Chris E. Cooper, we have added higher-concentration CCO files to the [Zenodo data repository](https://doi.org/10.5281/zenodo.18847366), which are more accurate in the NIR region - but shouldn't be used below 500 nm.
+
+The default data corresponds to the main panel of Fig. 1, while the additional higher concentration data was visualized in the inset panels of Fig. 1 in: 
+
+Mason, M. G., Nicholls, P., & Cooper, C. E. (2014). Re-evaluation of the near infrared spectra of mitochondrial cytochrome c oxidase: implications for non invasive in vivo monitoring of tissues. *Biochimica et Biophysica Acta (BBA)-Bioenergetics*, 1837(11), 1882-1891.
+
 ## Table of Contents
 
 * [Getting Started](#getting-started)
