@@ -74,8 +74,11 @@ Homepage = "https://github.com/IMSY-DKFZ/mcmlnet"
 Repository = "https://github.com/IMSY-DKFZ/mcmlnet"
 
 [tool.setuptools]
-packages = ["mcmlnet"]
 include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+packages = ["mcmlnet*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "mcmlnet.__version__"}
