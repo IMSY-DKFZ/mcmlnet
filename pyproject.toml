@@ -78,7 +78,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-packages = ["mcmlnet*"]
+include = ["mcmlnet*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "mcmlnet.__version__"}
