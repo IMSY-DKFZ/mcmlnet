@@ -163,6 +163,7 @@ def calculate_spectrum_for_batch(
     mco_file: str = "",
     verbose: bool = True,
     timeout: float | None = None,
+    seed: int | None = None,
 ) -> pd.DataFrame:
     """
     Take a single batch without simulations and generate the simulations with MCML.
@@ -182,6 +183,7 @@ def calculate_spectrum_for_batch(
         mco_file: the path to a file where MCML results will be stored.
         verbose: show output from MCML subprocess
         timeout: time to wait until killing MCML subprocess
+        seed: optional seed for MCML's random number generator
 
     Returns:
         data frame with simulated reflectances
@@ -250,7 +252,9 @@ def calculate_spectrum_for_batch(
     tissue_instance.write_mci_content()
 
     # Run simulations for computing reflectance from parameters
-    sim_wrapper.run_simulation(mco_file=mco_file, verbose=verbose, timeout=timeout)
+    sim_wrapper.run_simulation(
+        mco_file=mco_file, verbose=verbose, timeout=timeout, seed=seed
+    )
 
     # get information from created mco file
     if mco_file:
@@ -402,6 +406,7 @@ def calculate_spectrum_for_physical_batch(
     mco_file: str = "",
     verbose: bool = True,
     timeout: float | None = None,
+    seed: int | None = None,
 ) -> pd.DataFrame:
     """
     Take a batch or single set of physical parameter and evaluate them using MCML
@@ -428,6 +433,7 @@ def calculate_spectrum_for_physical_batch(
         mco_file: the path to a file where MCML results will be stored
         verbose: show output from MCML subprocess
         timeout: time to wait until killing MCML subprocess
+        seed: optional seed for MCML's random number generator
 
     Returns:
         dataframe containing the reflectance (and penetration depth (optional))
@@ -545,7 +551,9 @@ def calculate_spectrum_for_physical_batch(
 
     # Run simulations for computing reflectance from parameters
     try:
-        sim_wrapper.run_simulation(mco_file=mco_file, verbose=verbose, timeout=timeout)
+        sim_wrapper.run_simulation(
+            mco_file=mco_file, verbose=verbose, timeout=timeout, seed=seed
+        )
     except TimeoutExpired as err:
         # delete created simulation files
         os.remove(mci_filename)

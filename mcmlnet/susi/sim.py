@@ -479,13 +479,26 @@ class SimWrapper:
             raise ValueError("Could not find MCML executable")
 
     def run_simulation(
-        self, mco_file: str = "", verbose: bool = True, timeout: float | None = None
+        self,
+        mco_file: str = "",
+        verbose: bool = True,
+        timeout: float | None = None,
+        seed: int | None = None,
     ) -> None:
-        """This method runs a monte carlo simulation."""
+        """This method runs a monte carlo simulation.
+
+        Args:
+            mco_file: Path to the MCML output file.
+            verbose: Whether to show MCML output.
+            timeout: Maximum time to wait for MCML to finish.
+            seed: Optional seed passed to MCML's random number generator.
+        """
         abs_mci_filename = os.path.abspath(self.mci_filename)
         args = (self.mcml_executable,)
         if self.ignore_a:
             args += ("-A",)  # type: ignore [assignment]
+        if seed is not None:
+            args += ("-S", str(seed))  # type: ignore [assignment]
         if not mco_file:
             mco_file = MCO_PATH  # type: ignore [assignment]
         args += (  # type: ignore [assignment]
